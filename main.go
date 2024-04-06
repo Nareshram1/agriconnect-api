@@ -12,7 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"github.com/joho/godotenv"
+	// "github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -76,9 +76,9 @@ func LoginUserEndpoint(response http.ResponseWriter, request *http.Request) {
 
 func main() {
     // Load environment variables from .env file
-    if err := godotenv.Load(); err != nil {
-        log.Fatalf("Error loading .env file: %v", err)
-    }
+    // if err := godotenv.Load(); err != nil {
+    //     log.Fatalf("Error loading .env file: %v", err)
+    // }
 
     // Get MongoDB URI from environment variable or use a default value
     mongoURI := os.Getenv("MONGO_URI")
