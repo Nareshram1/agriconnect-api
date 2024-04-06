@@ -28,21 +28,28 @@ func CreateUserEndpoint(response http.ResponseWriter, request *http.Request) {
     response.Header().Set("content-type", "application/json")
     var user User
     _ = json.NewDecoder(request.Body).Decode(&user)
-
+	log.Println("1")
     hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	log.Println("11")
+
     if err != nil {
         response.WriteHeader(http.StatusInternalServerError)
         response.Write([]byte(`{"error": "Error hashing password"}`))
+		log.Println("err1")
+
         return
     }
+	log.Println("2")
 
     collection := client.Database("npdb").Collection("users")
     _, err = collection.InsertOne(context.Background(), User{Username: user.Username, Password: string(hashedPassword)})
     if err != nil {
+		log.Println("err2")
         response.WriteHeader(http.StatusInternalServerError)
         response.Write([]byte(`{"error": "` + err.Error() + `"}`))
         return
     }
+	log.Println("3")
 
     json.NewEncoder(response).Encode(user)
 }
