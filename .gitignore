@@ -15,3 +15,4 @@ _vendor/
 
 # Dependency directories (remove the comment below if you are using modules)
 # /vendor/
+.env
