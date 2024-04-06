@@ -82,7 +82,6 @@ func main() {
 
     // Get MongoDB URI from environment variable or use a default value
     mongoURI := os.Getenv("MONGO_URI")
-	log.Println(mongoURI)
     if mongoURI == "" {
         log.Fatal("MONGO_URI environment variable is not set")
     }
