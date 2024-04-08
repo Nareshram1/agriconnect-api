@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+    "math"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
@@ -20,6 +21,12 @@ type User struct {
     Username string `json:"username"`
     Password string `json:"password"`
     Pmail string `json:"pmail"`
+}
+
+type Person struct {
+    Pmail      string    `json:"pmail"`
+    Latitude  float64   `json:"latitude"`
+    Longitude float64   `json:"longitude"`
 }
 
 var client *mongo.Client
@@ -93,7 +100,93 @@ func LoginUserEndpoint(response http.ResponseWriter, request *http.Request) {
     response.WriteHeader(http.StatusOK)
     response.Write([]byte(`{"message": "Login successful"}`))
 }
+    // Find around endpoint
+// Function to calculate distance between two coordinates using Haversine formula
+func calculateDistance(lat1, lon1, lat2, lon2 float64) float64 {
+    const radius = 6371 // Earth radius in kilometers
+    dLat := (lat2 - lat1) * (math.Pi / 180)
+    dLon := (lon2 - lon1) * (math.Pi / 180)
+    a := math.Sin(dLat/2)*math.Sin(dLat/2) + math.Cos(lat1*(math.Pi/180))*math.Cos(lat2*(math.Pi/180))*math.Sin(dLon/2)*math.Sin(dLon/2)
+    c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+    distance := radius * c
+    return distance
+}
 
+func PeopleWithinRadiusEndpoint(response http.ResponseWriter, request *http.Request) {
+    response.Header().Set("Content-Type", "application/json")
+
+    // Parse latitude and longitude from request JSON
+    var reqBody struct {
+        Latitude  float64 `json:"latitude"`
+        Longitude float64 `json:"longitude"`
+    }
+    err := json.NewDecoder(request.Body).Decode(&reqBody)
+    if err != nil {
+        response.WriteHeader(http.StatusBadRequest)
+        response.Write([]byte(`{"error": "Invalid request JSON"}`))
+        return
+    }
+
+    // Connect to MongoDB and query for people within the radius
+    var people []Person
+    collection := client.Database("npdb").Collection("hireme")
+    filter := bson.M{}
+    cursor, err := collection.Find(context.Background(), filter)
+    if err != nil {
+        response.WriteHeader(http.StatusInternalServerError)
+        response.Write([]byte(`{"error": "Error finding people"}`))
+        return
+    }
+    defer cursor.Close(context.Background())
+    for cursor.Next(context.Background()) {
+        var person Person
+        if err := cursor.Decode(&person); err != nil {
+            response.WriteHeader(http.StatusInternalServerError)
+            response.Write([]byte(`{"error": "Error decoding person"}`))
+            return
+        }
+        // Calculate distance between person and given coordinates
+        distance := calculateDistance(reqBody.Latitude, reqBody.Longitude, person.Latitude, person.Longitude)
+        if distance <= 30 { // Check if within 30km radius
+            people = append(people, person)
+        }
+    }
+    if err := cursor.Err(); err != nil {
+        response.WriteHeader(http.StatusInternalServerError)
+        response.Write([]byte(`{"error": "Error iterating over people"}`))
+        return
+    }
+
+    // Return people within the radius
+    json.NewEncoder(response).Encode(people)
+}
+
+
+// POST JOB 
+func PostJob(response http.ResponseWriter, request *http.Request) {
+    response.Header().Set("Content-Type", "application/json")
+
+    // Parse request body
+    var job Person
+    err := json.NewDecoder(request.Body).Decode(&job)
+    if err != nil {
+        response.WriteHeader(http.StatusBadRequest)
+        response.Write([]byte(`{"error": "Invalid request JSON"}`))
+        return
+    }
+
+    // Insert job into database
+    collection := client.Database("npdb").Collection("hireme")
+    _, err = collection.InsertOne(context.Background(), job)
+    if err != nil {
+        response.WriteHeader(http.StatusInternalServerError)
+        response.Write([]byte(`{"error": "Error adding job to database"}`))
+        return
+    }
+
+    response.WriteHeader(http.StatusCreated)
+    response.Write([]byte(`{"message": "Job added successfully"}`))
+}
 
 func main() {
     // Load environment variables from .env file
@@ -119,6 +212,8 @@ func main() {
     router := mux.NewRouter()
     router.HandleFunc("/signup", CreateUserEndpoint).Methods("POST")
 	router.HandleFunc("/login", LoginUserEndpoint).Methods("POST")
+	router.HandleFunc("/hireList", PeopleWithinRadiusEndpoint).Methods("POST")
+	router.HandleFunc("/postJob", PostJob).Methods("POST")
 	// Use CORS middleware to handle CORS
 	handler := cors.Default().Handler(router)
     log.Fatal(http.ListenAndServe(":"+port, handler))
