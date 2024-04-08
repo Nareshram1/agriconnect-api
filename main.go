@@ -25,6 +25,7 @@ type User struct {
 }
 
 type Person struct {
+    Name       string `json:"username"`
     Pmail      string    `json:"pmail"`
     Latitude  float64   `json:"latitude"`
     Longitude float64   `json:"longitude"`
@@ -183,6 +184,7 @@ func PostJob(response http.ResponseWriter, request *http.Request) {
 
     // Parse request body
     var job struct {
+        Name      string `json:"username"`
         Pmail     string `json:"pmail"`
         Latitude  string `json:"latitude"`
         Longitude string `json:"longitude"`
@@ -212,6 +214,7 @@ func PostJob(response http.ResponseWriter, request *http.Request) {
     collection := client.Database("npdb").Collection("hireme")
     _, err = collection.InsertOne(context.Background(), bson.M{
         "pmail":     job.Pmail,
+        "username":      job.Name,
         "latitude":  lat,
         "longitude": lon,
     })
