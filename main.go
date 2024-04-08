@@ -19,39 +19,53 @@ import (
 type User struct {
     Username string `json:"username"`
     Password string `json:"password"`
+    Pmail string `json:"pmail"`
 }
 
 var client *mongo.Client
 
 func CreateUserEndpoint(response http.ResponseWriter, request *http.Request) {
-	log.Println("Create user endpoint called")
-    response.Header().Set("content-type", "application/json")
-    var user User
-    _ = json.NewDecoder(request.Body).Decode(&user)
-	log.Println("1")
-    hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
-	log.Println("11")
+    log.Println("req")
+    response.Header().Set("Content-Type", "application/json")
+    var user struct {
+        Username string `json:"username"`
+        Password string `json:"password"`
+        Pmail    string `json:"pmail"`
 
+    }
+    _ = json.NewDecoder(request.Body).Decode(&user)
+
+    // Check if either email or phone is provided
+    // if user.Email == "" && user.Phone == "" {
+    //     response.WriteHeader(http.StatusBadRequest)
+    //     response.Write([]byte(`{"error": "Please provide email or phone"}`))
+    //     return
+    // }
+
+    hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
     if err != nil {
         response.WriteHeader(http.StatusInternalServerError)
         response.Write([]byte(`{"error": "Error hashing password"}`))
-		log.Println("err1")
-
         return
     }
-	log.Println("2")
+
+    // Choose which field to use for user creation (email or phone)
+    newUser := User{
+        Username: user.Username,
+        Password: string(hashedPassword),
+        Pmail: user.Pmail,
+    }
+
 
     collection := client.Database("npdb").Collection("users")
-    _, err = collection.InsertOne(context.Background(), User{Username: user.Username, Password: string(hashedPassword)})
+    _, err = collection.InsertOne(context.Background(), newUser)
     if err != nil {
-		log.Println("err2")
         response.WriteHeader(http.StatusInternalServerError)
         response.Write([]byte(`{"error": "` + err.Error() + `"}`))
         return
     }
-	log.Println("3")
 
-    json.NewEncoder(response).Encode(user)
+    json.NewEncoder(response).Encode(newUser)
 }
 
 func LoginUserEndpoint(response http.ResponseWriter, request *http.Request) {
