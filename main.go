@@ -74,7 +74,7 @@ func LoginUserEndpoint(response http.ResponseWriter, request *http.Request) {
     _ = json.NewDecoder(request.Body).Decode(&user)
 
     collection := client.Database("npdb").Collection("users")
-    filter := bson.M{"username": user.Username}
+    filter := bson.M{"pmail": user.Pmail}
     var result User
     err := collection.FindOne(context.Background(), filter).Decode(&result)
     if err != nil {
@@ -93,7 +93,6 @@ func LoginUserEndpoint(response http.ResponseWriter, request *http.Request) {
     response.WriteHeader(http.StatusOK)
     response.Write([]byte(`{"message": "Login successful"}`))
 }
-
 
 
 func main() {
