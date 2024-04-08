@@ -25,10 +25,10 @@ type User struct {
 }
 
 type Person struct {
-    Name       string `json:"username"`
-    Pmail      string    `json:"pmail"`
-    Latitude  float64   `json:"latitude"`
-    Longitude float64   `json:"longitude"`
+    Username  string  `json:"username" bson:"username"`
+    Pmail     string  `json:"pmail" bson:"pmail"`
+    Latitude  float64 `json:"latitude" bson:"latitude"`
+    Longitude float64 `json:"longitude" bson:"longitude"`
 }
 
 var client *mongo.Client
