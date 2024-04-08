@@ -120,6 +120,7 @@ func PeopleWithinRadiusEndpoint(response http.ResponseWriter, request *http.Requ
         Latitude  float64 `json:"latitude"`
         Longitude float64 `json:"longitude"`
     }
+    log.Println(request.Body)
     err := json.NewDecoder(request.Body).Decode(&reqBody)
     if err != nil {
         response.WriteHeader(http.StatusBadRequest)
