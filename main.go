@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
     "math"
+    "strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
@@ -117,14 +118,27 @@ func PeopleWithinRadiusEndpoint(response http.ResponseWriter, request *http.Requ
 
     // Parse latitude and longitude from request JSON
     var reqBody struct {
-        Latitude  float64 `json:"latitude"`
-        Longitude float64 `json:"longitude"`
+        Latitude  string  `json:"latitude"`
+        Longitude string  `json:"longitude"`
     }
-    log.Println(request.Body)
     err := json.NewDecoder(request.Body).Decode(&reqBody)
     if err != nil {
         response.WriteHeader(http.StatusBadRequest)
         response.Write([]byte(`{"error": "Invalid request JSON"}`))
+        return
+    }
+
+    // Convert latitude and longitude strings to float64
+    lat, err := strconv.ParseFloat(reqBody.Latitude, 64)
+    if err != nil {
+        response.WriteHeader(http.StatusBadRequest)
+        response.Write([]byte(`{"error": "Invalid latitude format"}`))
+        return
+    }
+    lon, err := strconv.ParseFloat(reqBody.Longitude, 64)
+    if err != nil {
+        response.WriteHeader(http.StatusBadRequest)
+        response.Write([]byte(`{"error": "Invalid longitude format"}`))
         return
     }
 
@@ -147,7 +161,7 @@ func PeopleWithinRadiusEndpoint(response http.ResponseWriter, request *http.Requ
             return
         }
         // Calculate distance between person and given coordinates
-        distance := calculateDistance(reqBody.Latitude, reqBody.Longitude, person.Latitude, person.Longitude)
+        distance := calculateDistance(lat, lon, person.Latitude, person.Longitude)
         if distance <= 30 { // Check if within 30km radius
             people = append(people, person)
         }
@@ -168,7 +182,11 @@ func PostJob(response http.ResponseWriter, request *http.Request) {
     response.Header().Set("Content-Type", "application/json")
 
     // Parse request body
-    var job Person
+    var job struct {
+        Pmail     string `json:"pmail"`
+        Latitude  string `json:"latitude"`
+        Longitude string `json:"longitude"`
+    }
     err := json.NewDecoder(request.Body).Decode(&job)
     if err != nil {
         response.WriteHeader(http.StatusBadRequest)
@@ -176,9 +194,27 @@ func PostJob(response http.ResponseWriter, request *http.Request) {
         return
     }
 
+    // Convert latitude and longitude strings to float64
+    lat, err := strconv.ParseFloat(job.Latitude, 64)
+    if err != nil {
+        response.WriteHeader(http.StatusBadRequest)
+        response.Write([]byte(`{"error": "Invalid latitude format"}`))
+        return
+    }
+    lon, err := strconv.ParseFloat(job.Longitude, 64)
+    if err != nil {
+        response.WriteHeader(http.StatusBadRequest)
+        response.Write([]byte(`{"error": "Invalid longitude format"}`))
+        return
+    }
+
     // Insert job into database
     collection := client.Database("npdb").Collection("hireme")
-    _, err = collection.InsertOne(context.Background(), job)
+    _, err = collection.InsertOne(context.Background(), bson.M{
+        "pmail":     job.Pmail,
+        "latitude":  lat,
+        "longitude": lon,
+    })
     if err != nil {
         response.WriteHeader(http.StatusInternalServerError)
         response.Write([]byte(`{"error": "Error adding job to database"}`))
