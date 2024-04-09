@@ -8,7 +8,7 @@ import (
 	"os"
     "math"
     "strconv"
-
+    
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 	"go.mongodb.org/mongo-driver/bson"
@@ -31,6 +31,14 @@ type Person struct {
     Longitude float64 `json:"longitude" bson:"longitude"`
 }
 
+// Vehicle represents a rental vehicle
+type Vehicle struct {
+    ID       string  `json:"id" bson:"_id,omitempty"`
+    Owner    string  `json:"owner" bson:"owner"`
+    Model    string  `json:"model" bson:"model"`
+    Location string  `json:"location" bson:"location"`
+    Available bool  `json:"available" bson:"available"`
+}
 var client *mongo.Client
 
 func CreateUserEndpoint(response http.ResponseWriter, request *http.Request) {
@@ -43,13 +51,6 @@ func CreateUserEndpoint(response http.ResponseWriter, request *http.Request) {
 
     }
     _ = json.NewDecoder(request.Body).Decode(&user)
-
-    // Check if either email or phone is provided
-    // if user.Email == "" && user.Phone == "" {
-    //     response.WriteHeader(http.StatusBadRequest)
-    //     response.Write([]byte(`{"error": "Please provide email or phone"}`))
-    //     return
-    // }
 
     hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
     if err != nil {
@@ -228,6 +229,57 @@ func PostJob(response http.ResponseWriter, request *http.Request) {
     response.Write([]byte(`{"message": "Job added successfully"}`))
 }
 
+// ListAvailableVehiclesEndpoint lists all available rental vehicles
+func ListAvailableVehiclesEndpoint(response http.ResponseWriter, request *http.Request) {
+    response.Header().Set("Content-Type", "application/json")
+
+
+    // Access "vehicles" collection
+    collection := client.Database("npdb").Collection("vehicles")
+
+    // Query for available vehicles
+    cursor, err := collection.Find(context.Background(), bson.M{"available": true})
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer cursor.Close(context.Background())
+
+    // Fetch and encode available vehicles
+    var vehicles []Vehicle
+    if err := cursor.All(context.Background(), &vehicles); err != nil {
+        log.Fatal(err)
+    }
+    json.NewEncoder(response).Encode(vehicles)
+}
+
+// RentOutVehicleEndpoint allows users to rent out their vehicles
+func RentOutVehicleEndpoint(response http.ResponseWriter, request *http.Request) {
+    response.Header().Set("Content-Type", "application/json")
+
+    // Parse request body
+    var vehicle Vehicle
+    if err := json.NewDecoder(request.Body).Decode(&vehicle); err != nil {
+        response.WriteHeader(http.StatusBadRequest)
+        response.Write([]byte(`{"error": "Invalid request JSON"}`))
+        return
+    }
+
+    // Access "vehicles" collection
+    collection := client.Database("npdb").Collection("vehicles")
+
+    // Insert new vehicle into collection
+    _, err := collection.InsertOne(context.Background(), vehicle)
+    if err != nil {
+        response.WriteHeader(http.StatusInternalServerError)
+        response.Write([]byte(`{"error": "` + err.Error() + `"}`))
+        return
+    }
+
+    response.WriteHeader(http.StatusCreated)
+    response.Write([]byte(`{"message": "Vehicle rented out successfully"}`))
+}
+
+// driver code
 func main() {
     // Load environment variables from .env file
     if err := godotenv.Load(); err != nil {
@@ -254,6 +306,8 @@ func main() {
 	router.HandleFunc("/login", LoginUserEndpoint).Methods("POST")
 	router.HandleFunc("/hireList", PeopleWithinRadiusEndpoint).Methods("POST")
 	router.HandleFunc("/postJob", PostJob).Methods("POST")
+	router.HandleFunc("/addRental", RentOutVehicleEndpoint).Methods("POST")
+	router.HandleFunc("/listRental", ListAvailableVehiclesEndpoint).Methods("POST")
 	// Use CORS middleware to handle CORS
 	handler := cors.Default().Handler(router)
     log.Fatal(http.ListenAndServe(":"+port, handler))
