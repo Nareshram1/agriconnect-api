@@ -189,6 +189,7 @@ func PostJob(response http.ResponseWriter, request *http.Request) {
         Pmail     string `json:"pmail"`
         Latitude  string `json:"latitude"`
         Longitude string `json:"longitude"`
+        Location  string `json:"location"`
     }
     err := json.NewDecoder(request.Body).Decode(&job)
     if err != nil {
@@ -215,9 +216,10 @@ func PostJob(response http.ResponseWriter, request *http.Request) {
     collection := client.Database("npdb").Collection("hireme")
     _, err = collection.InsertOne(context.Background(), bson.M{
         "pmail":     job.Pmail,
-        "username":      job.Name,
+        "username":  job.Name,
         "latitude":  lat,
         "longitude": lon,
+        "location":  job.Location,
     })
     if err != nil {
         response.WriteHeader(http.StatusInternalServerError)
