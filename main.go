@@ -27,6 +27,7 @@ type User struct {
 type Person struct {
     Username  string  `json:"username" bson:"username"`
     Pmail     string  `json:"pmail" bson:"pmail"`
+    PhoneNumber string    `json:"phoneNumer" bson:"phoneNumer"`
     Latitude  float64 `json:"latitude" bson:"latitude"`
     Longitude float64 `json:"longitude" bson:"longitude"`
 }
@@ -187,6 +188,7 @@ func PostJob(response http.ResponseWriter, request *http.Request) {
     var job struct {
         Name      string `json:"username"`
         Pmail     string `json:"pmail"`
+        PhoneNumber string `json:"phoneNumber"`
         Latitude  string `json:"latitude"`
         Longitude string `json:"longitude"`
         Location  string `json:"location"`
@@ -219,6 +221,7 @@ func PostJob(response http.ResponseWriter, request *http.Request) {
         "username":  job.Name,
         "latitude":  lat,
         "longitude": lon,
+        "phoneNumer" : job.PhoneNumber,
         "location":  job.Location,
     })
     if err != nil {
