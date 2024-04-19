@@ -7,8 +7,11 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/smtp"
 	"os"
 	"strconv"
+    "strings"
+
 
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
@@ -17,6 +20,9 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
+	"github.com/twilio/twilio-go"
+	twilioApi "github.com/twilio/twilio-go/rest/api/v2010"
+
 )
 
 type User struct {
@@ -359,7 +365,119 @@ func AddOwnerAndEmployeeHandler(response http.ResponseWriter, request *http.Requ
     response.WriteHeader(http.StatusCreated)
     response.Write([]byte(`{"message": "Owner and employee added successfully"}`))
 }
+///////////
 
+// EmailConfig stores email configuration
+type EmailConfig struct {
+	Host     string `json:"host"`
+	Port     string `json:"port"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	From     string `json:"from"`
+}
+
+// TwilioConfig stores Twilio configuration
+type TwilioConfig struct {
+	AccountSID string `json:"accountSID"`
+	AuthToken  string `json:"authToken"`
+	From       string `json:"from"`
+}
+
+// Config stores both email and Twilio configurations
+type Config struct {
+	Email  EmailConfig  `json:"email"`
+	Twilio TwilioConfig `json:"twilio"`
+}
+
+// MessageRequest represents the JSON request format
+type MessageRequest struct {
+	Pmail   string `json:"pmail"`
+	Message string `json:"message"`
+}
+
+// SendMessageHandler handles HTTP requests to send messages
+func SendMessageHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+    log.Println("Received message sending request.")
+	// Parse request body
+	var request MessageRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Check if the contact information is an email address
+	if strings.Contains(request.Pmail, "@") {
+		// Send email
+		config := Config{
+			Email: EmailConfig{
+				Host:     "smtp.example.com",
+				Port:     "587",
+				Username: "tester805s11@gmail.com",
+				Password: "Orbfamily@1234",
+				From:     "tester805s11@gmail.com",
+			},
+		}
+		if err := sendEmail(config, request.Pmail, request.Message); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		// Send SMS
+		config := Config{
+			Twilio: TwilioConfig{
+				AccountSID: "AC61c08f4c07aab8389fdbc0f3e3a23c28",
+				AuthToken:  "9fe69c90a6250601e9f9412a336e4ab9",
+				From:       "+12513124293",
+			},
+		}
+		if err := sendSMS(config, request.Pmail, request.Message); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Respond with success message
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "Message sent successfully"}`))
+}
+
+// sendEmail sends an email message using SMTP
+func sendEmail(config Config, to, message string) error {
+	auth := smtp.PlainAuth("", config.Email.Username, config.Email.Password, config.Email.Host)
+
+	msg := []byte("To: " + to + "\r\n" +
+		"Subject: Your Subject\r\n" +
+		"\r\n" +
+		message)
+
+	addr := config.Email.Host + ":" + config.Email.Port
+	if err := smtp.SendMail(addr, auth, config.Email.From, []string{to}, msg); err != nil {
+		return err
+	}
+	return nil
+}
+
+// sendSMS sends an SMS message using Twilio
+func sendSMS(config Config, to, message string) error {
+	client := twilio.NewRestClientWithParams(twilio.ClientParams{
+		Username: config.Twilio.AccountSID,
+		Password: config.Twilio.AuthToken,
+	})
+
+	params := &twilioApi.CreateMessageParams{}
+	params.SetTo(to)
+	params.SetFrom(config.Twilio.From)
+	params.SetBody(message)
+
+	resp, err := client.Api.CreateMessage(params)
+	if err != nil {
+		return err
+	}
+	response, _ := json.Marshal(*resp)
+	log.Println("Response: " + string(response))
+	return nil
+}
 // driver code
 func main() {
     // Load environment variables from .env file
@@ -390,6 +508,7 @@ func main() {
 	router.HandleFunc("/addRental", RentOutVehicleEndpoint).Methods("POST")
 	router.HandleFunc("/listRental", ListAvailableVehiclesEndpoint).Methods("POST")
 	router.HandleFunc("/hired", AddOwnerAndEmployeeHandler).Methods("POST")
+    router.HandleFunc("/sendMessage", SendMessageHandler)
 	// Use CORS middleware to handle CORS
 	handler := cors.Default().Handler(router)
     log.Fatal(http.ListenAndServe(":"+port, handler))
