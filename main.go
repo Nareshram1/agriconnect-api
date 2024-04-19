@@ -405,7 +405,10 @@ func SendMessageHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
+    // Load environment variables from .env file
+    if err := godotenv.Load(); err != nil {
+        log.Fatalf("Error loading .env file: %v", err)
+    }
 	// Check if the contact information is an email address
 	if strings.Contains(request.Pmail, "@") {
 		// Send email
@@ -413,9 +416,9 @@ func SendMessageHandler(w http.ResponseWriter, r *http.Request) {
 			Email: EmailConfig{
 				Host:     "smtp.example.com",
 				Port:     "587",
-				Username: "tester805s11@gmail.com",
-				Password: "Orbfamily@1234",
-				From:     "tester805s11@gmail.com",
+				Username: os.Getenv("Username"),
+				Password: os.Getenv("Password"),
+				From:     os.Getenv("From"),
 			},
 		}
 		if err := sendEmail(config, request.Pmail, request.Message); err != nil {
@@ -424,11 +427,12 @@ func SendMessageHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// Send SMS
+        
 		config := Config{
 			Twilio: TwilioConfig{
-				AccountSID: "AC61c08f4c07aab8389fdbc0f3e3a23c28",
-				AuthToken:  "9fe69c90a6250601e9f9412a336e4ab9",
-				From:       "+12513124293",
+				AccountSID: os.Getenv("AccountSID"),
+				AuthToken:  os.Getenv("AuthToken"),
+				From:       os.Getenv("FromT"),
 			},
 		}
 		if err := sendSMS(config, request.Pmail, request.Message); err != nil {
