@@ -3,18 +3,19 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
+	"math"
 	"net/http"
 	"os"
-    "math"
-    "strconv"
-    
+	"strconv"
+
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -123,6 +124,7 @@ func PeopleWithinRadiusEndpoint(response http.ResponseWriter, request *http.Requ
     var reqBody struct {
         Latitude  string  `json:"latitude"`
         Longitude string  `json:"longitude"`
+        Location  string  `json:"location"`
     }
     err := json.NewDecoder(request.Body).Decode(&reqBody)
     if err != nil {
@@ -283,6 +285,80 @@ func RentOutVehicleEndpoint(response http.ResponseWriter, request *http.Request)
     response.WriteHeader(http.StatusCreated)
     response.Write([]byte(`{"message": "Vehicle rented out successfully"}`))
 }
+//
+// AddOwnerAndEmployee adds a new owner and employee to the database
+func AddOwnerAndEmployee(ownerEmail string, employeeEmail string) error {
+    // Connect to MongoDB
+    collection := client.Database("npdb").Collection("hired")
+
+    // Check if the owner already exists
+    filter := bson.M{"ownerEmail": ownerEmail}
+    var existingOwner struct {
+        OwnerEmail string   `bson:"ownerEmail"`
+        Employees  []string `bson:"employees"`
+    }
+    err := collection.FindOne(context.Background(), filter).Decode(&existingOwner)
+    if err != nil {
+        // If owner not found, insert a new entry for the owner with the employee
+        _, err := collection.InsertOne(context.Background(), bson.M{
+            "ownerEmail": ownerEmail,
+            "employees":  []string{employeeEmail},
+        })
+        if err != nil {
+            // If error occurred during insertion, return error
+            return err
+        }
+        return nil
+    }
+
+    // If owner exists, check if employee already exists
+    for _, e := range existingOwner.Employees {
+        if e == employeeEmail {
+            return errors.New("employee already exists for this owner")
+        }
+    }
+
+    // Add employee to existing owner's data
+    existingOwner.Employees = append(existingOwner.Employees, employeeEmail)
+
+    // Update owner's data in MongoDB
+    update := bson.M{"$set": bson.M{"employees": existingOwner.Employees}}
+    _, err = collection.UpdateOne(context.Background(), filter, update)
+    if err != nil {
+        // If error occurred during update, return error
+        return err
+    }
+
+    return nil
+}
+
+// AddOwnerAndEmployeeHandler handles HTTP requests to add a new owner and employee
+func AddOwnerAndEmployeeHandler(response http.ResponseWriter, request *http.Request) {
+    response.Header().Set("Content-Type", "application/json")
+
+    // Parse request body
+    var data struct {
+        OwnerEmail   string `json:"ownerEmail"`
+        EmployeeEmail string `json:"employeeEmail"`
+    }
+    err := json.NewDecoder(request.Body).Decode(&data)
+    if err != nil {
+        response.WriteHeader(http.StatusBadRequest)
+        response.Write([]byte(`{"error": "Invalid request JSON"}`))
+        return
+    }
+
+    // Call the function to add owner and employee
+    err = AddOwnerAndEmployee(data.OwnerEmail, data.EmployeeEmail)
+    if err != nil {
+        response.WriteHeader(http.StatusInternalServerError)
+        response.Write([]byte(`{"error": "Error adding owner and employee to database"}`))
+        return
+    }
+
+    response.WriteHeader(http.StatusCreated)
+    response.Write([]byte(`{"message": "Owner and employee added successfully"}`))
+}
 
 // driver code
 func main() {
@@ -313,6 +389,7 @@ func main() {
 	router.HandleFunc("/postJob", PostJob).Methods("POST")
 	router.HandleFunc("/addRental", RentOutVehicleEndpoint).Methods("POST")
 	router.HandleFunc("/listRental", ListAvailableVehiclesEndpoint).Methods("POST")
+	router.HandleFunc("/hired", AddOwnerAndEmployeeHandler).Methods("POST")
 	// Use CORS middleware to handle CORS
 	handler := cors.Default().Handler(router)
     log.Fatal(http.ListenAndServe(":"+port, handler))
