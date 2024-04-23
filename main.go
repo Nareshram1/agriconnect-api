@@ -463,6 +463,46 @@ type MessageRequest struct {
 	Message string `json:"message"`
 }
 
+//last two
+func EmpList(response http.ResponseWriter, request *http.Request) {
+    response.Header().Set("Content-Type", "application/json")
+
+    // Parse request body
+    var requestData struct {
+        OwnerEmail string `json:"ownerEmail"`
+    }
+    err := json.NewDecoder(request.Body).Decode(&requestData)
+    if err != nil {
+        response.WriteHeader(http.StatusBadRequest)
+        response.Write([]byte(`{"error": "Invalid request JSON"}`))
+        return
+    }
+
+    // Query the database to find employees for the owner
+    collection := client.Database("npdb").Collection("hired")
+    filter := bson.M{"ownerEmail": requestData.OwnerEmail}
+    var result struct {
+        OwnerEmail string   `bson:"ownerEmail"`
+        Employees  []string `bson:"employees"`
+    }
+    err = collection.FindOne(context.Background(), filter).Decode(&result)
+    if err != nil {
+        response.WriteHeader(http.StatusNotFound)
+        response.Write([]byte(`{"error": "Owner not found or no employees assigned"}`))
+        return
+    }
+
+    // Encode the employees array into JSON
+    responseData, err := json.Marshal(result.Employees)
+    if err != nil {
+        response.WriteHeader(http.StatusInternalServerError)
+        response.Write([]byte(`{"error": "Internal server error"}`))
+        return
+    }
+
+    response.WriteHeader(http.StatusOK)
+    response.Write(responseData)
+}
 
 // driver code
 func main() {
@@ -495,6 +535,8 @@ func main() {
 	router.HandleFunc("/listRental", ListAvailableVehiclesEndpoint).Methods("POST")
 	router.HandleFunc("/hired", AddOwnerAndEmployeeHandler).Methods("POST")
 	router.HandleFunc("/rented", AddOwnerAndEmployeeHandlerRented).Methods("POST")
+	router.HandleFunc("/emplist", EmpList).Methods("POST")
+	router.HandleFunc("/renatlList", AddOwnerAndEmployeeHandlerRented).Methods("POST")
     // router.HandleFunc("/sendMessage", SendMessageHandler).Methods("POST")
 	// Use CORS middleware to handle CORS
 	handler := cors.Default().Handler(router)
