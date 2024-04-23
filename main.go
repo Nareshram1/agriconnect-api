@@ -336,6 +336,48 @@ func AddOwnerAndEmployee(ownerEmail string, employeeEmail string) error {
 
     return nil
 }
+func Rented(ownerEmail string, employeeEmail string) error {
+    // Connect to MongoDB
+    collection := client.Database("npdb").Collection("rented")
+
+    // Check if the owner already exists
+    filter := bson.M{"ownerEmail": ownerEmail}
+    var existingOwner struct {
+        OwnerEmail string   `bson:"ownerEmail"`
+        Rental     string   `bson:"rental"`
+    }
+    err := collection.FindOne(context.Background(), filter).Decode(&existingOwner)
+    if err != nil {
+        // If owner not found, insert a new entry for the owner with the employee
+        _, err := collection.InsertOne(context.Background(), bson.M{
+            "ownerEmail": ownerEmail,
+            "rental":     employeeEmail,
+        })
+        if err != nil {
+            // If error occurred during insertion, return error
+            return err
+        }
+        return nil
+    }
+
+    // If owner exists, check if employee already exists
+    // for _, e := range existingOwner.Rental {
+    //     return e
+    // }
+
+    // Add employee to existing owner's data
+    // existingOwner.Employees = append(existingOwner.Employees, employeeEmail)
+
+    // Update owner's data in MongoDB
+    // update := bson.M{"$set": bson.M{"employees": existingOwner.Employees}}
+    // _, err = collection.UpdateOne(context.Background(), filter, update)
+    if err != nil {
+        // If error occurred during update, return error
+        return err
+    }
+
+    return nil
+}
 
 // AddOwnerAndEmployeeHandler handles HTTP requests to add a new owner and employee
 func AddOwnerAndEmployeeHandler(response http.ResponseWriter, request *http.Request) {
@@ -363,6 +405,33 @@ func AddOwnerAndEmployeeHandler(response http.ResponseWriter, request *http.Requ
 
     response.WriteHeader(http.StatusCreated)
     response.Write([]byte(`{"message": "Owner and employee added successfully"}`))
+}
+
+func AddOwnerAndEmployeeHandlerRented(response http.ResponseWriter, request *http.Request) {
+    response.Header().Set("Content-Type", "application/json")
+
+    // Parse request body
+    var data struct {
+        OwnerEmail   string `json:"ownerEmail"`
+        Rental string `json:"rental"`
+    }
+    err := json.NewDecoder(request.Body).Decode(&data)
+    if err != nil {
+        response.WriteHeader(http.StatusBadRequest)
+        response.Write([]byte(`{"error": "Invalid request JSON"}`))
+        return
+    }
+
+    // Call the function to add owner and employee
+    err = Rented(data.OwnerEmail, data.Rental)
+    if err != nil {
+        response.WriteHeader(http.StatusInternalServerError)
+        response.Write([]byte(`{"error": "Error adding owner and employee to database"}`))
+        return
+    }
+
+    response.WriteHeader(http.StatusCreated)
+    response.Write([]byte(`{"message": "Rental added successfully"}`))
 }
 ///////////
 
@@ -425,6 +494,7 @@ func main() {
 	router.HandleFunc("/addRental", RentOutVehicleEndpoint).Methods("POST")
 	router.HandleFunc("/listRental", ListAvailableVehiclesEndpoint).Methods("POST")
 	router.HandleFunc("/hired", AddOwnerAndEmployeeHandler).Methods("POST")
+	router.HandleFunc("/rented", AddOwnerAndEmployeeHandlerRented).Methods("POST")
     // router.HandleFunc("/sendMessage", SendMessageHandler).Methods("POST")
 	// Use CORS middleware to handle CORS
 	handler := cors.Default().Handler(router)
