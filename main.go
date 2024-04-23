@@ -43,6 +43,7 @@ type Person struct {
 type Vehicle struct {
     ID       string  `json:"id" bson:"_id,omitempty"`
     Owner    string  `json:"owner" bson:"owner"`
+    Pmail    string  `json:"pmail" bson:"pmail"`
     Model    string  `json:"model" bson:"model"`
     Location string  `json:"location" bson:"location"`
     Available bool  `json:"available" bson:"available"`
@@ -245,8 +246,6 @@ func PostJob(response http.ResponseWriter, request *http.Request) {
 // ListAvailableVehiclesEndpoint lists all available rental vehicles
 func ListAvailableVehiclesEndpoint(response http.ResponseWriter, request *http.Request) {
     response.Header().Set("Content-Type", "application/json")
-
-
     // Access "vehicles" collection
     collection := client.Database("npdb").Collection("vehicles")
 
@@ -512,7 +511,7 @@ func main() {
 	router.HandleFunc("/addRental", RentOutVehicleEndpoint).Methods("POST")
 	router.HandleFunc("/listRental", ListAvailableVehiclesEndpoint).Methods("POST")
 	router.HandleFunc("/hired", AddOwnerAndEmployeeHandler).Methods("POST")
-    router.HandleFunc("/sendMessage", SendMessageHandler)
+    router.HandleFunc("/sendMessage", SendMessageHandler).Methods("POST")
 	// Use CORS middleware to handle CORS
 	handler := cors.Default().Handler(router)
     log.Fatal(http.ListenAndServe(":"+port, handler))
